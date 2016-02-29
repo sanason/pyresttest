@@ -102,8 +102,8 @@ class Test(object):
     validators = None  # Validators for response body, IE regexes, etc
     stop_on_failure = False
     failures = None
-    auth_username = None
-    auth_password = None
+    _auth_username = None
+    _auth_password = None
     auth_type = pycurl.HTTPAUTH_BASIC
     delay = 0
     curl_options = None
@@ -183,6 +183,42 @@ class Test(object):
         return val
     url = property(get_url, set_url, None, 'URL fragment for request')
 
+    NAME_AUTH_USERNAME = 'username'
+
+    def set_auth_username(self, value, isTemplate=False):
+        """ Set auth_username, passing flag if using a template """
+        if isTemplate:
+            self.set_template(self.NAME_AUTH_USERNAME, value)
+        else:
+            self.del_template(self.NAME_AUTH_USERNAME)
+        self._auth_username = value
+
+    def get_auth_username(self, context=None):
+        """ Get auth_username, applying template if pertinent """
+        val = self.realize_template(self.NAME_AUTH_USERNAME, context)
+        if val is None:
+            val = self._auth_username
+        return val
+    auth_username = property(get_auth_username, set_auth_username, None, 'Auth username for request')
+
+    NAME_AUTH_PASSWORD = 'password'
+
+    def set_auth_password(self, value, isTemplate=False):
+        """ Set auth_password, passing flag if using a template """
+        if isTemplate:
+            self.set_template(self.NAME_AUTH_PASSWORD, value)
+        else:
+            self.del_template(self.NAME_AUTH_PASSWORD)
+        self._auth_password = value
+
+    def get_auth_password(self, context=None):
+        """ Get auth_password, applying template if pertinent """
+        val = self.realize_template(self.NAME_AUTH_PASSWORD, context)
+        if val is None:
+            val = self._auth_password
+        return val
+    auth_password = property(get_auth_password, set_auth_password, None, 'Auth password for request')
+
     NAME_HEADERS = 'headers'
     # Totally different from others
 
@@ -251,6 +287,8 @@ class Test(object):
                 selfcopy._body = self._body.get_content(context)
             selfcopy._url = self.get_url(context=context)
             selfcopy._headers = self.get_headers(context=context)
+            selfcopy._auth_username = self.get_auth_username(context=context)
+            selfcopy._auth_password = self.get_auth_password(context=context)
             return selfcopy
 
     def realize_partial(self, context=None):
@@ -409,8 +447,6 @@ class Test(object):
         # Simple table of variable name, coerce function, and optionally special store function
         CONFIG_ELEMENTS = {
             # Simple variables
-            u'auth_username': [coerce_string_to_ascii],
-            u'auth_password': [coerce_string_to_ascii],
             u'method': [coerce_http_method], # HTTP METHOD
             u'delay': [lambda x: int(x)], # Delay before running
             u'group': [coerce_to_string], # Test group name
@@ -464,6 +500,26 @@ class Test(object):
                     assert isinstance(configvalue, basestring) or isinstance(
                         configvalue, int)
                     mytest.url = urlparse.urljoin(base_url, coerce_to_string(configvalue))
+            elif configelement == u'auth_username':
+                if isinstance(configvalue, dict):
+                    # Template is used for auth_username
+                    val = lowercase_keys(configvalue)[u'template']
+                    assert isinstance(val, basestring) or isinstance(val, int)
+                    mytest.set_auth_username(coerce_to_string(val), isTemplate=True)
+                else:
+                    assert isinstance(configvalue, basestring) or isinstance(
+                            configvalue, int)
+                    mytest.auth_username = coerce_string_to_ascii(configvalue)
+            elif configelement == u'auth_password':
+                if isinstance(configvalue, dict):
+                    # Template is used for auth_password
+                    val = lowercase_keys(configvalue)[u'template']
+                    assert isinstance(val, basestring) or isinstance(val, int)
+                    mytest.set_auth_password(coerce_to_string(val), isTemplate=True)
+                else:
+                    assert isinstance(configvalue, basestring) or isinstance(
+                            configvalue, int)
+                    mytest.auth_password = coerce_string_to_ascii(configvalue)
             elif configelement == u'extract_binds':
                 # Add a list of extractors, of format:
                 # {variable_name: {extractor_type: extractor_config}, ... }
